@@ -6,11 +6,11 @@ async function readCSV(filePath) {
     const results = [];
     
     try {
-        const stream = fs.createReadStream(filePath)
+        const path = fs.createReadStream(filePath)
             .on('error', error => { throw error; });
 
         await new Promise((resolve, reject) => {
-            stream.pipe(csv())
+            path.pipe(csv())
                 .on('data', (data) => results.push(data))
                 .on('end', () => resolve())
                 .on('error', (error) => reject(error));
