@@ -1,4 +1,4 @@
-const { executeDELETEQuery } = require('../../src/index');
+const { executeDELETEQuery } = require('../../src/queryExecutor');
 const { readCSV, writeCSV } = require('../../src/csvReader');
 const fs = require('fs');
 
@@ -21,8 +21,10 @@ test('Execute DELETE FROM Query for courses.csv', async () => {
     const deleteQuery = "DELETE FROM courses WHERE course_id = '2'";
     await executeDELETEQuery(deleteQuery);
 
+
     // Verify the course was removed
     const updatedData = await readCSV('courses.csv');
+    console.log(updatedData);
     const deletedCourse = updatedData.find(course => course.course_id === '2');
     expect(deletedCourse).toBeUndefined();
 
