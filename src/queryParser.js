@@ -1,44 +1,12 @@
-function parseSelectQuery(query) {
-    try {
-        let isDistinct = false;
-
-        if (query.toUpperCase().includes('SELECT DISTINCT')) {
-            isDistinct = true;
-            query = query.replace('SELECT DISTINCT', 'SELECT');
-        }
-
-        const selectRegex = /^SELECT\s(.*?)\sFROM\s(.*?)(?:\s(INNER|LEFT|RIGHT)\sJOIN\s(.*?)\sON\s(.*?))?(?:\sWHERE\s(.*?))?(?:\sGROUP\sBY\s(.*?))?(?:\sORDER\sBY\s(.*?))?(?:\sLIMIT\s(\d+))?$/i;
-
-        const matches = query.match(selectRegex);
-
-        if (!matches) {
-            throw new Error(`Invalid SELECT format.`);
-        }
-
-
-
-        const fields = matches[1].split(',').map(field => field.trim());
-        const table = matches[2].trim();
-        const { joinType, joinTable, joinCondition } = parseJoinClause(query);
-        const whereClause = matches[6] ? matches[6].trim() : null;
-        const whereClauses = whereClause ? parseWhereClause(whereClause) : [];
-        const groupByFields = matches[7] ? matches[7].split(',').map(field => field.trim()) : null;
-        const orderByFields = matches[8] ? matches[8].split(',').map(field => {
-            const [fieldName, order] = field.trim().split(/\s+/);
-            return { fieldName, order: order ? order.toUpperCase() : 'ASC' };
-        }) : null;
-        const hasAggregateWithoutGroupBy = hasAggregateWithoutGroupBy_(fields) && !groupByFields;
-        const limit = matches[9] ? parseInt(matches[9]) : null;
-
-        return { fields, table, whereClauses, groupByFields, orderByFields, joinType, joinTable, joinCondition, hasAggregateWithoutGroupBy, limit ,isDistinct};
-    } catch (error) {
-        throw new Error(`Query parsing error: ${error.message}`);
-    }
-}
-
 function hasAggregateWithoutGroupBy_(fields) {
     const aggregateRegex = /(\bCOUNT\b|\bAVG\b|\bSUM\b|\bMIN\b|\bMAX\b)\s*\(\s*(\*|\w+)\s*\)/i
     return fields.some(field => aggregateRegex.test(field));
+}
+
+
+function parseJoinCondition(joinCondition) {
+    const [left, right] = joinCondition.split('=').map(part => part.trim());
+    return { left, right };
 }
 
 function parseWhereClause(whereClause) {
@@ -77,7 +45,43 @@ function parseJoinClause(query) {
     };
 }
 
+function parseSelectQuery(query) {
+    try {
+        let isDistinct = false;
 
+        if (query.toUpperCase().includes('SELECT DISTINCT')) {
+            isDistinct = true;
+            query = query.replace('SELECT DISTINCT', 'SELECT');
+        }
+
+        const selectRegex = /^SELECT\s(.*?)\sFROM\s(.*?)(?:\s(INNER|LEFT|RIGHT)\sJOIN\s(.*?)\sON\s(.*?))?(?:\sWHERE\s(.*?))?(?:\sGROUP\sBY\s(.*?))?(?:\sORDER\sBY\s(.*?))?(?:\sLIMIT\s(\d+))?$/i;
+
+        const matches = query.match(selectRegex);
+
+        if (!matches) {
+            throw new Error(`Invalid SELECT format.`);
+        }
+
+
+
+        const fields = matches[1].split(',').map(field => field.trim());
+        const table = matches[2].trim();
+        const { joinType, joinTable, joinCondition } = parseJoinClause(query);
+        const whereClause = matches[6] ? matches[6].trim() : null;
+        const whereClauses = whereClause ? parseWhereClause(whereClause) : [];
+        const groupByFields = matches[7] ? matches[7].split(',').map(field => field.trim()) : null;
+        const orderByFields = matches[8] ? matches[8].split(',').map(field => {
+            const [fieldName, order] = field.trim().split(/\s+/);
+            return { fieldName, order: order ? order.toUpperCase() : 'ASC' };
+        }) : null;
+        const hasAggregateWithoutGroupBy = hasAggregateWithoutGroupBy_(fields) && !groupByFields;
+        const limit = matches[9] ? parseInt(matches[9]) : null;
+
+        return { fields, table, whereClauses, groupByFields, orderByFields, joinType, joinTable, joinCondition, hasAggregateWithoutGroupBy, limit ,isDistinct};
+    } catch (error) {
+        throw new Error(`Query parsing error: ${error.message}`);
+    }
+}
 
 function parseINSERTQuery(query) {
     const insertRegex = /^INSERT INTO\s+(\w+)\s+\((.*?)\)\s+VALUES\s+\((.*?)\)$/i;
@@ -128,4 +132,9 @@ function parseDELETEQuery(query) {
 }
 
 
+
+// const parsedQuery = parseDELETEQuery("DELETE FROM courses WHERE course_id = '2'");
+// console.log(parsedQuery);
+
+// Exporting both parseQuery and parseJoinClause
 module.exports = { parseSelectQuery,parseJoinClause,parseINSERTQuery,parseDELETEQuery };

@@ -44,10 +44,11 @@ function getValueFromRow(row, compoundFieldName) {
 }
 
 function performRightJoin(data, joinData, joinCondition, fields, table) {
+  // Cache the structure of a main table row (keys only)
   const mainTableRowStructure =
     data.length > 0
       ? Object.keys(data[0]).reduce((acc, key) => {
-          acc[key] = null; 
+          acc[key] = null; // Set all values to null initially
           return acc;
         }, {})
       : {};
@@ -58,7 +59,11 @@ function performRightJoin(data, joinData, joinCondition, fields, table) {
       const joinValue = getValueFromRow(joinRow, joinCondition.right);
       return mainValue === joinValue;
     });
+
+    // Use the cached structure if no match is found
     const mainRowToUse = mainRowMatch || mainTableRowStructure;
+
+    // Include all necessary fields from the 'student' table
     return createResultRow(mainRowToUse, joinRow, fields, table, true);
   });
 }
@@ -73,12 +78,14 @@ function createResultRow(
   const resultRow = {};
 
   if (includeAllMainFields) {
+    // Include all fields from the main table
     Object.keys(mainRow || {}).forEach((key) => {
       const prefixedKey = `${table}.${key}`;
       resultRow[prefixedKey] = mainRow ? mainRow[key] : null;
     });
   }
 
+  // Now, add or overwrite with the fields specified in the query
   fields.forEach((field) => {
     const [tableName, fieldName] = field.includes(".")
       ? field.split(".")
@@ -223,11 +230,14 @@ function evaluateCondition(row, clause) {
   }
 }
 
+// Helper function to parse value based on its apparent type
 function parseValue(value) {
+  // Return null or undefined as is
   if (value === null || value === undefined) {
     return value;
   }
 
+  // If the value is a string enclosed in single or double quotes, remove them
   if (
     typeof value === "string" &&
     ((value.startsWith("'") && value.endsWith("'")) ||
@@ -236,9 +246,11 @@ function parseValue(value) {
     value = value.substring(1, value.length - 1);
   }
 
+  // Check if value is a number
   if (!isNaN(value) && value.trim() !== "") {
     return Number(value);
   }
+  // Assume value is a string if not a number
   return value;
 }
 
@@ -258,19 +270,25 @@ async function executeSELECTQuery(query) {
       isDistinct
     } = parseSelectQuery(query);
     
+    // console.log("Parsed Query:", parseSelectQuery(query)); // Logging the parsed query for debugging
     
     let data = await readCSV(`${table}.csv`);
-
+    // console.log("Initial data:", data);
+    
+    // Perform INNER JOIN if specified
     if (joinTable && joinCondition) {
       const joinData = await readCSV(`${joinTable}.csv`);
       switch (joinType.toUpperCase()) {
         case "INNER":
+          // console.log("Performing INNER JOIN...");
           data = performInnerJoin(data, joinData, joinCondition, fields, table);
           break;
         case "LEFT":
+          // console.log("Performing LEFT JOIN...");
           data = performLeftJoin(data, joinData, joinCondition, fields, table);
           break;
         case "RIGHT":
+          // console.log("Performing RIGHT JOIN...");
           data = performRightJoin(data, joinData, joinCondition, fields, table);
           break;
         default:
@@ -278,6 +296,7 @@ async function executeSELECTQuery(query) {
       }
     }
     
+    // Apply WHERE clause filtering after JOIN (or on the original data if no join)
     let filteredData =
       whereClauses.length > 0
         ? data.filter((row) =>
@@ -286,11 +305,15 @@ async function executeSELECTQuery(query) {
         : data;
     
     let groupResults = filteredData;
+    // console.log("Has Aggregate Without Group By:", hasAggregateWithoutGroupBy);
     
     if (hasAggregateWithoutGroupBy) {
-
+      // console.log("Handling Aggregate Without Group By...");
+      // Special handling for queries like 'SELECT COUNT(*) FROM table'
       const result = {};
-
+    
+      // console.log("Filtered Data:", filteredData);
+    
       fields.forEach((field) => {
         const match = /(\w+)\((\*|\w+)\)/.exec(field);
         if (match) {
@@ -322,15 +345,18 @@ async function executeSELECTQuery(query) {
                 ...filteredData.map((row) => parseFloat(row[aggField])),
               );
               break;
+            // Additional aggregate functions can be handled here
           }
         }
       });
     
       if (isDistinct) {
+        // console.log("Handling DISTINCT...");
         result = [...new Map(result.map(item => [fields.map(field => item[field]).join('|'), item])).values()];
       }
     
       if (orderByFields) {
+        // console.log("Sorting results...");
         const orderByGroup = (a, b) => {
           for (let { fieldName, order } of orderByFields) {
             if (a[fieldName] < b[fieldName]) return order === "ASC" ? -1 : 1;
@@ -338,15 +364,20 @@ async function executeSELECTQuery(query) {
           }
           return 0;
         };
-      return [result].sort(orderByGroup);
+        // Sort the result
+        return [result].sort(orderByGroup);
       } else {
         return [result];
       }
+      // Add more cases here if needed for other aggregates
     } else if (groupByFields) {
+      // console.log("Applying Group By...");
       groupResults = applyGroupBy(filteredData, groupByFields, fields);
     
+      // Order them by the specified fields
       let orderedResults = groupResults;
       if (orderByFields) {
+        // console.log("Sorting results...");
         orderedResults = groupResults.sort((a, b) => {
           for (let { fieldName, order } of orderByFields) {
             if (a[fieldName] < b[fieldName]) return order === "ASC" ? -1 : 1;
@@ -357,17 +388,21 @@ async function executeSELECTQuery(query) {
       }
     
       if (isDistinct) {
+        // console.log("Handling DISTINCT... elseif");
         orderedResults = [...new Map(orderedResults.map(item => [fields.map(field => item[field]).join('|'), item])).values()];
       }
       
       if (limit !== null) {
+        // console.log("Applying Limit...");
         orderedResults = orderedResults.slice(0, limit);
       }
     
       return orderedResults;
     } else {
+      // Order them by the specified fields
       let orderedResults = groupResults;
       if (orderByFields) {
+        // console.log("Sorting results...");
         orderedResults = groupResults.sort((a, b) => {
           for (let { fieldName, order } of orderByFields) {
             if (a[fieldName] < b[fieldName]) return order === "ASC" ? -1 : 1;
@@ -378,13 +413,16 @@ async function executeSELECTQuery(query) {
       }
     
       if (isDistinct) {
+        // console.log("Handling DISTINCT...else");
         orderedResults = [...new Map(orderedResults.map(item => [fields.map(field => item[field]).join('|'), item])).values()];
       }
     
       if (limit !== null) {
+        // console.log("Applying Limit...");
         orderedResults = orderedResults.slice(0, limit);
       }
     
+      // Select the specified fields
       return orderedResults.map((row) => {
         const selectedRow = {};
         fields.forEach((field) => {
@@ -443,11 +481,14 @@ async function executeINSERTQuery(query) {
 
 async function executeDELETEQuery(query) {
     try {
+        // Parsing the DELETE query
         const { table, whereClauses } = parseDELETEQuery(query);
 
-     let data = await readCSV(`${table}.csv`);
+        // Reading data from CSV
+        let data = await readCSV(`${table}.csv`);
 
         if (whereClauses.length > 0) {
+            // Filter out the rows that meet the where clause conditions
             data = data.filter(row => {
                 for (const { column, operator, value } of whereClauses) {
                     if (evaluateCondition(row, { field: column, operator, value })) {
@@ -457,9 +498,11 @@ async function executeDELETEQuery(query) {
                 return true;
             });
         } else {
+            // If no where clause, clear the entire table
             data = [];
         }
 
+        // Save the updated data back to the CSV file
         await writeCSV(`${table}.csv`, data);
 
         return { message: "Rows deleted successfully." };
@@ -469,5 +512,20 @@ async function executeDELETEQuery(query) {
     }
 }
 
+
+
+
+  
+
+// (async () => {
+//   try {
+//     const data = await executeDELETEQuery(
+//       "DELETE FROM courses WHERE course_id = '2'",
+//     );
+    // console.log("Result:", data);
+//   } catch (error) {
+//     console.error("Error:", error);
+//   }
+// })();
 
 module.exports = {executeSELECTQuery,executeINSERTQuery,executeDELETEQuery};
