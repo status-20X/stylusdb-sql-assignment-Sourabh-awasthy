@@ -1,4 +1,4 @@
-const { executeINSERTQuery } = require('../../src/index');
+const { executeINSERTQuery } = require('../../src/queryExecutor');
 const { readCSV, writeCSV } = require('../../src/csvReader');
 const fs = require('fs');
 
@@ -23,9 +23,11 @@ test('Execute INSERT INTO Query for grades.csv', async () => {
 
     // Verify the new entry
     const updatedData = await readCSV('grades.csv');
+    console.log(updatedData)
     const newEntry = updatedData.find(row => row.student_id === '4' && row.course === 'Physics');
     console.log(updatedData)
     expect(newEntry).toBeDefined();
+    console.log("----",newEntry.grade)
     expect(newEntry.grade).toEqual('A');
 
     // Cleanup: Delete grades.csv
